@@ -4765,19 +4765,16 @@ body.light-theme .discord-logo-light {
     border-radius: 20px;
     padding: 24px;
     overflow: hidden;
-    transition: transform 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
-    animation: nexusCardReveal 0.8s cubic-bezier(0.22, 1, 0.36, 1) both,
-        nexusFloat 5.5s ease-in-out 0.8s infinite;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .nexus-card:nth-child(2) {
-    animation-delay: 0.15s, 0.95s;
 }
 
 .nexus-card:hover {
-    transform: translateY(-10px) scale(1.01);
-    border-color: rgba(255, 255, 255, 0.4);
-    box-shadow: 0 26px 50px rgba(0, 0, 0, 0.4);
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
 }
 
 .nexus-card h3 {
