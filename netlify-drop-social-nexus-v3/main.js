@@ -3,6 +3,76 @@
     const themeToggle = document.getElementById('themeToggle');
     const body = document.body;
     const themeDot = document.querySelector('.theme-dot');
+    // Use one balanced profile site-wide: keep motion, trim the expensive effects.
+    body.classList.add('performance-mode');
+    localStorage.removeItem('performance_mode_override');
+
+    const isPerformanceMode = true;
+
+    const initMediaOptimizations = () => {
+        const images = document.querySelectorAll('img');
+        images.forEach((img, index) => {
+            if (!img.hasAttribute('loading')) img.setAttribute('loading', index < 2 ? 'eager' : 'lazy');
+            if (!img.hasAttribute('decoding')) img.setAttribute('decoding', 'async');
+            if (!img.hasAttribute('fetchpriority')) img.setAttribute('fetchpriority', index === 0 ? 'high' : 'low');
+        });
+
+        const iframes = document.querySelectorAll('iframe');
+        iframes.forEach((iframe) => {
+            if (!iframe.hasAttribute('loading')) iframe.setAttribute('loading', 'lazy');
+        });
+    };
+
+    initMediaOptimizations();
+
+    // Keep clocks alive independently from the rest of the animation stack.
+    const startSystemClock = () => {
+        const clockFormatters = {
+            YYZ: new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/Toronto',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            }),
+            LDN: new Intl.DateTimeFormat('en-US', {
+                timeZone: 'Europe/London',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            }),
+            TKY: new Intl.DateTimeFormat('en-US', {
+                timeZone: 'Asia/Tokyo',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            })
+        };
+
+        const tick = () => {
+            const now = new Date();
+            const yyzTime = clockFormatters.YYZ.format(now);
+
+            const headerClock = document.getElementById('headerTime');
+            const heroClock = document.getElementById('heroClock');
+            const yyzClock = document.getElementById('clockYYZ');
+            const ldnClock = document.getElementById('clockLDN');
+            const tkyClock = document.getElementById('clockTKY');
+
+            if (headerClock) headerClock.textContent = yyzTime;
+            if (heroClock) heroClock.textContent = yyzTime;
+            if (yyzClock) yyzClock.textContent = yyzTime;
+            if (ldnClock) ldnClock.textContent = clockFormatters.LDN.format(now);
+            if (tkyClock) tkyClock.textContent = clockFormatters.TKY.format(now);
+        };
+
+        tick();
+        window.setInterval(tick, 1000);
+    };
+
+    startSystemClock();
 
     // Robust Initialization
     const initTheme = () => {
@@ -87,6 +157,18 @@
         
         if (!preloader) return;
 
+        if (isPerformanceMode) {
+            preloader.style.display = 'none';
+            preloader.style.zIndex = '-1';
+            document.body.classList.remove('js-loading');
+            gsap.set(['header', 'main'], { opacity: 1, visibility: 'visible', pointerEvents: 'all' });
+            initEffects();
+            initViewToggle();
+            initEcosystem();
+            ScrollTrigger.refresh();
+            return;
+        }
+
         // Force preloader every time for verification (removed sessionStorage check)
         
         document.body.classList.add('js-loading');
@@ -153,20 +235,48 @@
     // Initialize Preloader
     initPreloader();
 
-    // 1. Load YouTube IFrame API
-    const tag = document.createElement('script');
-    tag.src = "https://www.youtube.com/iframe_api";
-    const firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
     const players = {};
     const videoData = [
         { id: 'monkey-player', videoId: 'UNarPhkqDD0', cardClass: '.featured-monkey', title: 'HOW TO RIZZ UP EVERY BADDIE 😈 (MONKEY APP)' },
         { id: 'shangchi-player', videoId: '1UVkZgmm4Gk', cardClass: '.featured-shangchi', title: 'WHEN SHANG CHI WAS PUTTING BTA ON HIS POPS' }
     ];
 
+    const hasVideoCards = () => videoData.some(data => document.querySelector(data.cardClass));
+
+    const loadYouTubeAPI = () => {
+        if (window.__ytApiRequested) return;
+        window.__ytApiRequested = true;
+
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        tag.async = true;
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    };
+
     window.onYouTubeIframeAPIReady = () => {
+        if (!hasVideoCards()) return;
         videoData.forEach(data => setupVideo(data));
+    };
+
+    if (hasVideoCards() && !isPerformanceMode) {
+        const videoSection = document.querySelector('.youtube-hub') || document.querySelector('#community') || document.querySelector('.work');
+        if ('IntersectionObserver' in window && videoSection) {
+            const ytObserver = new IntersectionObserver((entries, observer) => {
+                if (entries.some(entry => entry.isIntersecting)) {
+                    loadYouTubeAPI();
+                    observer.disconnect();
+                }
+            }, { rootMargin: '250px 0px' });
+            ytObserver.observe(videoSection);
+        } else {
+            loadYouTubeAPI();
+        }
+    }
+
+    // 2. Social Stats Logic (Removed)
+    const initSocialStats = () => {
+        // Stats removed as requested
     };
 
     function setupVideo(data) {
@@ -247,10 +357,7 @@
             gsap.to(img, { opacity: 1, duration: 0.2 });
             gsap.to(card, { scale: 1, duration: 0.4 });
         });
-        // 2. Social Stats Logic (Removed)
-    const initSocialStats = () => {
-        // Stats removed as requested
-    }; };
+    }
 
     // 3. SLEEK REVEAL EFFECTS
     const initEffects = () => {
@@ -287,47 +394,32 @@
             ease: "back.out(1.2)"
         }, "-=0.6");
 
-        // 3.2 Project Grid: Premium Staggered Entry
-        const projectCards = gsap.utils.toArray('.project-card');
-        if (projectCards.length > 0) {
-            // Set initial state immediately to avoid 'invisible' bug if ScrollTrigger fails
-            gsap.set(projectCards, { opacity: 0, y: 50, scale: 0.95 });
+        // 3.2 Project Grid: Premium Staggered Entry (Removed to prevent scroll lag)
 
-            gsap.to(projectCards, {
-                opacity: 1,
-                y: 0,
-                scale: 1,
-                rotateX: 0,
-                duration: 1,
-                stagger: 0.1,
-                ease: 'power3.out',
+        // 3.3 Hero Watermark Parallax (Enhanced)
+        if (!isPerformanceMode) {
+            gsap.to('.hero-watermark', {
+                y: 150,
+                opacity: 0,
                 scrollTrigger: {
-                    trigger: '.project-grid',
-                    start: 'top 90%', // Earlier start
-                    once: true // Ensure it stays visible once triggered
+                    trigger: '.hero',
+                    start: 'top top',
+                    end: 'bottom top',
+                    scrub: 1
                 }
             });
         }
 
-        // 3.3 Hero Watermark Parallax (Enhanced)
-        gsap.to('.hero-watermark', {
-            y: 150,
-            opacity: 0,
-            scrollTrigger: {
-                trigger: '.hero',
-                start: 'top top',
-                end: 'bottom top',
-                scrub: 1
-            }
-        });
-
         // 3.4 Tech Marquee Sync
-        gsap.to('.marquee-content', {
-            xPercent: -50,
-            repeat: -1,
-            duration: 20,
-            ease: "none"
-        });
+        // In performance mode, let CSS handle marquee to avoid duplicate continuous animation work.
+        if (!isPerformanceMode) {
+            gsap.to('.marquee-content', {
+                xPercent: -50,
+                repeat: -1,
+                duration: 20,
+                ease: "none"
+            });
+        }
 
         // Ensure everything is calculated correctly
         ScrollTrigger.refresh();
@@ -418,7 +510,8 @@
             }
             
             logIndex = (logIndex + 1) % logs.length;
-            setTimeout(addLog, Math.random() * 2000 + 1500);
+            const nextDelay = isPerformanceMode ? 4500 : Math.random() * 2000 + 1500;
+            setTimeout(addLog, nextDelay);
         };
         addLog();
 
@@ -429,46 +522,8 @@
 
     };
 
-    // 0. SYSTEM CLOCK & GLOBAL NODES
-    const updateClock = () => {
-        const headerClock = document.getElementById('headerTime');
-        const heroClock = document.getElementById('heroClock');
-        const ldnClock = document.getElementById('clockLDN');
-        const tkyClock = document.getElementById('clockTKY');
-        const yyzClock = document.getElementById('clockYYZ');
-        
-        const now = new Date();
-        
-        // Helper for formatted time
-        const getFormattedTime = (date, timezoneOffset) => {
-            // Adjust for timezone
-            const localDate = new Date(date.toLocaleString('en-US', { timeZone: timezoneOffset }));
-            let h = localDate.getHours();
-            const m = String(localDate.getMinutes()).padStart(2, '0');
-            const s = String(localDate.getSeconds()).padStart(2, '0');
-            const ampm = h >= 12 ? 'PM' : 'AM';
-            h = h % 12 || 12;
-            return `${String(h).padStart(2, '0')}:${m}:${s} ${ampm}`;
-        };
-
-        // Toronto (Local)
-        const timeStr = getFormattedTime(now, 'America/Toronto');
-        if (headerClock) headerClock.textContent = timeStr;
-        if (heroClock) heroClock.textContent = timeStr;
-        if (yyzClock) yyzClock.textContent = timeStr;
-
-        // London
-        if (ldnClock) ldnClock.textContent = getFormattedTime(now, 'Europe/London');
-        
-        // Tokyo
-        if (tkyClock) tkyClock.textContent = getFormattedTime(now, 'Asia/Tokyo');
-
-        setTimeout(updateClock, 1000);
-    };
-    updateClock();
-
     // 0. Status Dot Pulsing
-    if (document.querySelector('.status-dot')) {
+    if (!isPerformanceMode && document.querySelector('.status-dot')) {
         gsap.to('.status-dot', {
             opacity: 0.2,
             duration: 1,
@@ -495,6 +550,5 @@
 
     document.querySelectorAll('.reveal-on-scroll').forEach(el => observer.observe(el));
 
-    // Ensure GSAP plugins are ready and clocks are starting
-    updateClock();
+    // Ensure GSAP plugins are ready
 })();
